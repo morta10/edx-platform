@@ -62,7 +62,6 @@ def get_course_outline(course_key: CourseKey) -> CourseOutlineData:
 
     # Build mapping of section.id keys to sequence lists.
     sec_ids_to_sequence_list = defaultdict(list)
-    seq_keys_to_sequence = {}
 
     for sec_seq_model in section_sequence_models:
         sequence_model = sec_seq_model.sequence
@@ -74,7 +73,6 @@ def get_course_outline(course_key: CourseKey) -> CourseOutlineData:
                 visible_to_staff_only=sec_seq_model.visible_to_staff_only,
             )
         )
-        seq_keys_to_sequence[sequence_data.usage_key] = sequence_data
         sec_ids_to_sequence_list[sec_seq_model.section_id].append(sequence_data)
 
     sections_data = []
@@ -97,7 +95,6 @@ def get_course_outline(course_key: CourseKey) -> CourseOutlineData:
         published_at=learning_context.published_at,
         published_version=learning_context.published_version,
         sections=sections_data,
-        sequences=seq_keys_to_sequence,
     )
     TieredCache.set_all_tiers(cache_key, outline_data, 300)
 
@@ -119,10 +116,6 @@ def _get_learning_context_for_outline(course_key: CourseKey) -> LearningContext:
         )
     return learning_context
 
-
-import cProfile
-import pstats
-
 def get_user_course_outline(course_key: CourseKey,
                             user: User,
                             at_time: datetime) -> UserCourseOutlineData:
@@ -141,14 +134,10 @@ def get_user_course_outline_details(course_key: CourseKey,
     """
     Get an outline with supplementary data like scheduling information.
     """
-#    pr = cProfile.Profile()
-#    pr.enable()
-
-    user_course_outline, processors = _get_user_course_outline_and_processors(course_key, user, at_time)
+    user_course_outline, processors = _get_user_course_outline_and_processors(
+        course_key, user, at_time
+    )
     schedule_processor = processors['schedule']
-
-#    pr.disable()
-#    pr.dump_stats("/edx/app/edxapp/edx-platform/stats/outline/hello.stats")
 
     return UserCourseOutlineDetailsData(
         outline=user_course_outline,
@@ -157,7 +146,7 @@ def get_user_course_outline_details(course_key: CourseKey,
 
 def _get_user_course_outline_and_processors(course_key: CourseKey,
                                             user: User,
-                                            at_time: datetime): # how do you do tuple responses of ordereddicts again?
+                                            at_time: datetime):
     full_course_outline = get_course_outline(course_key)
     user_can_see_all_content = can_see_all_content(user, course_key)
 
@@ -217,7 +206,7 @@ def _get_user_course_outline_and_processors(course_key: CourseKey,
         accessible_sequences=accessible_sequences,
         **{
             name: getattr(trimmed_course_outline, name)
-            for name in attr.fields_dict(CourseOutlineData)
+            for name in ['course_key', 'title', 'published_at', 'published_version', 'sections']
         }
     )
 

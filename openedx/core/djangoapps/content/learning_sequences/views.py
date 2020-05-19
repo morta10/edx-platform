@@ -1,6 +1,6 @@
 """
-
-
+The views.py for this app is intentionally thin, and only exists to translate
+user input/output to and from the business logic in the `api` package.
 """
 from datetime import datetime, timezone
 import json
@@ -16,8 +16,8 @@ from rest_framework.serializers import BaseSerializer
 import attr
 
 from openedx.core.lib.api.permissions import IsStaff
-from .api.data import ScheduleData, UserCourseOutlineData
 from .api import get_user_course_outline_details
+from .api.data import ScheduleData, UserCourseOutlineData
 
 
 User = get_user_model()
@@ -35,7 +35,25 @@ class CourseOutlineView(APIView):
     permission_classes = (IsStaff,)
 
     class UserCourseOutlineDataSerializer(BaseSerializer):
-        """Read-only serializer for CourseOutlineData for this endpoint."""
+        """
+        Read-only serializer for CourseOutlineData for this endpoint.
+
+        This serializer was purposefully declared inline with the
+        CourseOutlineView to discourage reuse/magic. Our goal is to make it
+        extremely obvious how things are being serialized, and not have suprise
+        regressions because a shared serializer in another module was modified
+        to fix an issue in one of its three use cases.
+
+        The data structures in api/data.py send back try to separate the data by
+        lifecycle (e.g. CourseOutlineData vs UserCourseOutlineData) and by
+        logical system (e.g. ScheduleData) to promote performance and
+        pluggability. But for the REST API, we're just trying to collapse those
+        into the simplest, most convenient output possible.
+
+        We also remove any references to "usage_keys" at this layer. UsageKeys
+        are a critical part of the internals of edx-platform, so the in-process
+        API uses them, but we translate them to "ids" for REST API clients.
+        """
         def to_representation(self, user_course_outline_details):
             """
             Convert to something DRF knows how to serialize (so no custom types)
@@ -46,15 +64,21 @@ class CourseOutlineView(APIView):
             user_course_outline = user_course_outline_details.outline
             schedule = user_course_outline_details.schedule
             return {
+                # Top level course information
                 "course_key": str(user_course_outline.course_key),
                 "course_start": schedule.course_start,
                 "course_end": schedule.course_end,
-
-                "username": str(user_course_outline.user.username),
                 "title": user_course_outline.title,
-                "at_time": user_course_outline.at_time,
                 "published_at": user_course_outline.published_at,
                 "published_version": user_course_outline.published_version,
+
+                # Who and when this request was generated for (we can eventually
+                # support arbitrary times).
+                "username": user_course_outline.user.username,  # "" if anonymous
+                "user_id": user_course_outline.user.id,  # null if anonymous
+                "at_time": user_course_outline.at_time,
+
+                # The actual course structure information...
                 "outline": {
                     "sections": [
                         self._section_repr(section, schedule.sections.get(section.usage_key))
@@ -72,6 +96,7 @@ class CourseOutlineView(APIView):
             }
 
         def _sequence_repr(self, sequence, sequence_schedule, accessible_sequences):
+            """Representation of a Sequence."""
             if sequence_schedule is None:
                 schedule_item_dict = {'start': None, 'effective_start': None, 'due': None}
             else:
@@ -90,6 +115,7 @@ class CourseOutlineView(APIView):
             }
 
         def _section_repr(self, section, section_schedule):
+            """Representation of a Section."""
             if section_schedule is None:
                 schedule_item_dict = {'start': None, 'effective_start': None}
             else:
@@ -115,21 +141,11 @@ class CourseOutlineView(APIView):
 
     def get(self, request, course_key_str, format=None):
         """
-        Generally, the questions for an item in a Course Outline are:
-        1. Is the user allowed to see that it exists at all. (content gating, enrollment)
-        2. Is the user allowed to access the sequence pointed at (should there be a link)
+        The CourseOutline, customized for a given user.
 
-        Generally, unless it's excluded by some user partitioning or gating, we
-        should always see that something exists, even if we can't access it.
-        Because those things have start dates and deadlines and completion information
-        and other things that are useful to see in context.
+        Currently restricted to global staff.
 
-        Types of supplementary information that people might add:
-        * Schedule information
-        * Content Group / Cohort information?
-        * Completion information
-        * Estimates
-        * some things are hidden after their due date
+        TODO: Swagger docs of API.
         """
         # Translate input params and do any substitutions...
         course_key = CourseKey.from_string(course_key_str)
@@ -141,9 +157,13 @@ class CourseOutlineView(APIView):
         serializer = self.UserCourseOutlineDataSerializer(user_course_outline_details)
         return Response(serializer.data)
 
+
     def _determine_user(self, request):
-        # Requesting for a different user (easiest way to test for students)
-        # while restricting access to only global staff...
+        """
+        Requesting for a different user (easiest way to test for students)
+        while restricting access to only global staff. This is a placeholder
+        until we have more full fledged permissions/masquerading.
+        """
         requested_username = request.GET.get("user")
         if request.user.is_staff and requested_username:
             return User.objects.get(username=requested_username)

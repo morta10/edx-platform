@@ -45,32 +45,41 @@ class OutlineProcessor:
         """
         Fetch whatever data you need about the course and user here.
 
+        If everything you need is already in the CourseOutlineData, there is no
+        need to override this method.
+
         DO NOT USE MODULESTORE OR BLOCKSTRUCTURES HERE, as the up-front
         performance penalties of those modules are the entire reason this app
-        exists.
+        exists. Running this method in your subclass should take no more than
+        tens of milliseconds, even on courses with hundreds of learning
+        sequences.
         """
-        raise NotImplementedError()
+        pass
 
-    def inaccessible_usage_keys(self, full_course_outline):
+    def inaccessible_sequences(self, full_course_outline):
         """
-        Return a set/frozenset of UsageKeys that are not accessible.
+        Return a set/frozenset of Sequence UsageKeys that are not accessible.
 
-        This will not be run for staff users.
+        This will not be run for staff users (who can access everything), so
+        there is no need to check for staff access here.
         """
-        raise NotImplementedError()
+        return frozenset()
 
     def usage_keys_to_remove(self, full_course_outline):
         """
         Return a set/frozenset of UsageKeys to remove altogether.
 
-        This should not be run for staff users.
+        This will not be run for staff users (who can see everything), so
+        there is no need to check for staff access here.
         """
-        raise NotImplementedError()
+        return frozenset()
 
     @classmethod
-    def is_sequence(cls, usage_key):
+    def is_sequence_key(cls, usage_key):
+        """Helper in case we add more Sequence-like types."""
         return usage_key.block_type == 'sequential'
 
     @classmethod
-    def is_section(cls, usage_key):
+    def is_section_key(cls, usage_key):
+        """Helper in case we add more Section-like types."""
         return usage_key.block_type == 'chapter'

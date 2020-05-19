@@ -72,18 +72,12 @@ def update_from_modulestore(course_key):
             section_data = _make_section_data(section)
             sections_data.append(section_data)
 
-        sequences = OrderedDict()
-        for section_data in sections_data:
-            for seq_data in section_data.sequences:
-                sequences[seq_data.usage_key] = seq_data
-
         course_outline_data = CourseOutlineData(
             course_key=course_key,
             title=course.display_name,
             published_at=course.subtree_edited_on,
             published_version=str(course.course_version),  # .course_version is a BSON obj
             sections=sections_data,
-            sequences=sequences,
         )
 
     replace_course_outline(course_outline_data)

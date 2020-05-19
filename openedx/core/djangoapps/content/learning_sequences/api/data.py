@@ -1,14 +1,29 @@
 """
+Public data structures for this app.
+
+Guidelines:
+
+1. Make these data structures immutable (frozen=True) wherever possible, as it
+   simplifies debugging.
+2. This module should not import any other part of the app. This is the module
+   that everything else imports, not the other way around. Dependencies should
+   be kept to an absolute minimum–the Python stdlib, attr, opaque keys, and some
+   Django primitives.
+3. Keep the data classes dumb. Business logic should go into the api package
+   modules that operate on this data. Do not attach complex objects with methods
+   as attributes to data classes, as this makes them more difficult to mock out
+   and make guarantees about behavior.
+4. These data classes can perform validation, but only if that validation is
+   entirely self-contained. They MUST NOT make database calls, network requests,
+   or use API functions from other apps. They should not trigger expensive
+   computation.
+
 Note: we're using old-style syntax for attrs because we need to support Python
 3.5, but we can move to the PEP-526 style once we move to Python 3.6+.
-
-Note: These attr classes are only allowed to do validation that is entirely
-self-contained. They MUST NOT make database calls, network requests, or use API
-functions from other apps. This is to keep things easy to reason about.
 """
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set #, OrderedDict? Mapping?
+from typing import Dict, List, Optional, Set
 
 import attr
 from django.contrib.auth import get_user_model
@@ -19,15 +34,29 @@ User = get_user_model()
 log = logging.getLogger(__name__)
 
 
+class ObjectDoesNotExist(Exception):
+    """
+    Imitating Django model conventions, we put a subclass of this in some of our
+    data classes to indicate when something is not found.
+    """
+    pass
+
+
 @attr.s(frozen=True)
 class VisibilityData:
     """
     XBlock attributes that help determine item visibility.
     """
-    # Obscure, deprecated attribute meant to allow content that is still
-    # accessible to the user, but is not supposed to show up in the course
-    # outline view. This could be used for things like tutorials.
+    # This is an obscure, OLX-only flag (there is no UI for it in Studio) that
+    # lets you define a Sequence that is reachable by direct URL but not shown
+    # in Course navigation. It was used for things like supplementary tutorials
+    # that were not considered a part of the normal course path.
     hide_from_toc = attr.ib(type=bool)
+
+    # Restrict visibility to course staff, regardless of start date. This is
+    # often used to hide content that either still being built out, or is a
+    # scratch space of content that will eventually be copied over to other
+    # sequences.
     visible_to_staff_only = attr.ib(type=bool)
 
 
@@ -48,18 +77,20 @@ class CourseLearningSequenceData:
 
 @attr.s(frozen=True)
 class CourseSectionData:
+    """
+    A Section in a Course (sometimes called a Chapter).
+    """
     usage_key = attr.ib(type=UsageKey)
     title = attr.ib(type=str)
     sequences = attr.ib(type=List[CourseLearningSequenceData])
     visibility = attr.ib(type=VisibilityData)
 
 
-class ObjectDoesNotExist(Exception):
-    pass
-
-
 @attr.s(frozen=True)
 class CourseOutlineData:
+    """
+    Course Outline information without any user-specific data.
+    """
 
     class DoesNotExist(ObjectDoesNotExist):
         pass
@@ -90,12 +121,28 @@ class CourseOutlineData:
     # course is modified.
     published_version = attr.ib(type=str)
 
-    #
     sections = attr.ib(type=List[CourseSectionData])
 
-    # Note that it's possible for a LearningSequence to appear in sequences and
-    # not be in sections, e.g. if the Sequence's hide_from_toc=True
-    sequences = attr.ib(type=Dict[UsageKey, CourseLearningSequenceData])
+    # To make sure that our data structure is consistent, this field is
+    # derived from what you pass into `sections`. Do not set this directly.
+    sequences = attr.ib(type=Dict[UsageKey, CourseLearningSequenceData], init=False)
+
+    def __attrs_post_init__(self):
+        """Post-init hook that validates and inits the `sequences` field."""
+        sequences = {}
+        for section in self.sections:
+            for seq in section.sequences:
+                if seq.usage_key in sequences:
+                    raise ValueError(
+                        "Sequence {} appears in more than one Section."
+                        .format(seq.usage_key)
+                    )
+                else:
+                    sequences[seq.usage_key] = seq
+
+        # Have to use this to get around the fact that the class is frozen
+        # (which we almost always want, but not while we're initializing it).
+        object.__setattr__(self, "sequences", sequences)
 
     def remove(self, usage_keys):
         """
@@ -125,17 +172,15 @@ class CourseOutlineData:
                 )
                 for section in self.sections
                 if section.usage_key not in keys_to_remove
-            ],
-            sequences={
-                usage_key: sequence_data
-                for usage_key, sequence_data in self.sequences.items()
-                if usage_key not in keys_to_remove
-            },
+            ]
         )
 
 
 @attr.s(frozen=True)
 class ScheduleItemData:
+    """
+    Scheduling specific data (start/end/due dates) for a single item.
+    """
     usage_key = attr.ib(type=UsageKey)
 
     # Start date that is specified for this item
@@ -148,6 +193,9 @@ class ScheduleItemData:
 
 @attr.s(frozen=True)
 class ScheduleData:
+    """
+    Overall course schedule data.
+    """
     course_start = attr.ib(type=Optional[datetime])
     course_end = attr.ib(type=Optional[datetime])
     sections = attr.ib(type=Dict[UsageKey, ScheduleItemData])
@@ -197,9 +245,7 @@ class UserCourseOutlineData(CourseOutlineData):
 class UserCourseOutlineDetailsData:
     """
     Class that has a user's course outline plus useful details (like schedules).
+    Will eventually expand to include other systems like Completion.
     """
     outline = attr.ib(type=UserCourseOutlineData)
     schedule = attr.ib(type=ScheduleData)
-
-
-

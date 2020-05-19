@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from edx_when.api import get_dates_for_course
 from opaque_keys.edx.keys import CourseKey, UsageKey
 
-from ..data import ScheduleData, ScheduleItemData
+from ..data import ScheduleData, ScheduleItemData, UserCourseOutlineData
 from .base import OutlineProcessor
 
 User = get_user_model()
@@ -15,6 +15,15 @@ log = logging.getLogger(__name__)
 
 class ScheduleOutlineProcessor(OutlineProcessor):
     """
+    Responsible for applying all start/due/end date outline processing.
+
+    We never hide the existence of a piece of content because of start or due
+    dates. Content may be inaccessible because it has yet to be released or the
+    exam has closed, but students are never prevented from knowing the content
+    exists based on the start and due date information.
+
+    This processor depends on edx-when to get customized due date information
+    for users and content.
 
     Things we don't handle yet:
     * Beta test users
@@ -31,8 +40,12 @@ class ScheduleOutlineProcessor(OutlineProcessor):
         self._course_end = None
 
     def load_data(self):
+        """Pull dates information from edx-when."""
         # (usage_key, 'due'): datetime.datetime(2019, 12, 11, 15, 0, tzinfo=<UTC>)
         self.dates = get_dates_for_course(self.course_key, self.user, outline_only=True)
+
+        # TODO: Merge https://github.com/edx/edx-when/pull/48
+
         for (usage_key, field_name), date in self.dates.items():
             self.keys_to_schedule_fields[usage_key][field_name] = date
 
@@ -40,23 +53,12 @@ class ScheduleOutlineProcessor(OutlineProcessor):
         self._course_start = self.keys_to_schedule_fields[course_usage_key].get('start')
         self._course_end = self.keys_to_schedule_fields[course_usage_key].get('end')
 
-    def usage_keys_to_remove(self, full_course_outline):
-        """
-        Set of UsageKeys to remove from the CourseOutline.
-
-        We never hide the existence of a piece of content because of start or
-        due dates. Content may be inaccessible because it has yet to be released
-        or the exam has closed, but students are never prevented from knowing
-        the content exists based on the start and due date information.
-        """
-        return frozenset()
-
     def inaccessible_sequences(self, full_course_outline):
         """
-        Set of UsageKeys for Sequences that are visible, but inaccessible.
-
         This might include Sequences that have not yet started, or Sequences
-        for exams that have closed.
+        for exams that have closed. If a Section has not started, all of its
+        Sequences are inaccessible, regardless of the individual Sequence start
+        dates.
         """
         if self._inaccessible_usage_keys is not None:
             return self._inaccessible_usage_keys
@@ -81,22 +83,20 @@ class ScheduleOutlineProcessor(OutlineProcessor):
 
         return inaccessible
 
-    def _effective_start(self, *dates):
-        specified_dates = [date for date in dates if date is not None]
-        if not specified_dates:
-            return None
-        return min(specified_dates)
-
-    def schedule_data(self, pruned_course_outline):
+    def schedule_data(self, pruned_course_outline: UserCourseOutlineData) -> ScheduleData:
         """
         Return the data we want to add to this CourseOutlineData.
 
-        Unlike `hidden_usage_keys`, this method gets a CourseOutlineData
-        that only has those LearningSequences that a user has permission to
-        access. We can use this to make sure that we're not returning data about
+        Be careful to pass in a UserCourseOutlineData–i.e. an outline that has
+        already been pruned to what a user is allowed to see. That way, we can
+        use this to make sure that we're not returning data about
         LearningSequences that the user can't see because it was hidden by a
         different OutlineProcessor.
         """
+        def _effective_start(self, *dates):
+            specified_dates = [date for date in dates if date is not None]
+            return min(specified_dates) if specified_dates else None
+
         pruned_section_keys = {section.usage_key for section in pruned_course_outline.sections}
         course_usage_key = self.course_key.make_usage_key('course', 'course')
         course_start = self.keys_to_schedule_fields[course_usage_key].get('start')
@@ -107,7 +107,7 @@ class ScheduleOutlineProcessor(OutlineProcessor):
         for section in pruned_course_outline.sections:
             section_dict = self.keys_to_schedule_fields[section.usage_key]
             section_start = section_dict.get('start')
-            section_effective_start = self._effective_start(course_start, section_start)
+            section_effective_start = _effective_start(course_start, section_start)
             section_due = section_dict.get('due')
 
             sections[section.usage_key] = ScheduleItemData(
@@ -124,7 +124,7 @@ class ScheduleOutlineProcessor(OutlineProcessor):
                 sequences[seq.usage_key] = ScheduleItemData(
                     usage_key=seq.usage_key,
                     start=seq_start,
-                    effective_start=self._effective_start(section_effective_start, seq_start),
+                    effective_start=_effective_start(section_effective_start, seq_start),
                     due=seq_due,
                 )
 
