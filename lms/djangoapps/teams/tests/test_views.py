@@ -1305,8 +1305,13 @@ class TestDeleteTeamAPI(EventTestMixin, TeamAPITestCase):
     )
     @ddt.unpack
     def test_access(self, user, status):
+        if user is not None:
+            team_list = self.get_teams_list(user='course_staff', expected_status=200)
+            previous_count = team_list['count']
         self.delete_team(self.solar_team.team_id, status, user=user)
         if status == 204:
+            team_list = self.get_teams_list(user='course_staff', expected_status=200)
+            self.assertEqual(team_list['count'], 6)
             self.assert_event_emitted(
                 'edx.team.deleted',
                 team_id=self.solar_team.team_id,
