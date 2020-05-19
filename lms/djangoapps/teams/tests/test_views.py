@@ -1311,7 +1311,7 @@ class TestDeleteTeamAPI(EventTestMixin, TeamAPITestCase):
         self.delete_team(self.solar_team.team_id, status, user=user)
         if status == 204:
             team_list = self.get_teams_list(user='course_staff', expected_status=200)
-            self.assertEqual(team_list['count'], 6)
+            self.assertEqual(team_list['count'], previous_count)
             self.assert_event_emitted(
                 'edx.team.deleted',
                 team_id=self.solar_team.team_id,
