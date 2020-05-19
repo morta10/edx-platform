@@ -1308,10 +1308,12 @@ class TestDeleteTeamAPI(EventTestMixin, TeamAPITestCase):
         if user is not None:
             team_list = self.get_teams_list(user='course_staff', expected_status=200)
             previous_count = team_list['count']
+            self.assertIn(self.solar_team.team_id, [result['id'] for result in team_list.get('results')])
         self.delete_team(self.solar_team.team_id, status, user=user)
         if status == 204:
             team_list = self.get_teams_list(user='course_staff', expected_status=200)
             self.assertEqual(team_list['count'], previous_count - 1)
+            self.assertNotIn(self.solar_team.team_id, [result['id'] for result in team_list.get('results')])
             self.assert_event_emitted(
                 'edx.team.deleted',
                 team_id=self.solar_team.team_id,
