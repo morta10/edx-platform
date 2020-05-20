@@ -13,7 +13,11 @@ Outline.
 Direction: Keep
 ---------------
 
-This package is being actively developed.
+This package is being actively developed, but in a very early state. We're not
+going to start feeding data into it (by triggering off of publish) until it's a
+little more complete, so that it's easier to make drastic changes to the data
+model if necessary. During development, you can seed data into it by using the
+``update_course_outline`` management command.
 
 -----
 Usage

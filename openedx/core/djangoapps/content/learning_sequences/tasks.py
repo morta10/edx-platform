@@ -1,14 +1,12 @@
-import json
-import logging
-import pprint
-from collections import OrderedDict
+"""
+This module is here as a placeholder, but knowledge of the modulestore should
+eventually be moved out of the learning_sequence app entirely.
 
-from celery.task import task
-from django.db import transaction
-from django.dispatch import receiver
-from opaque_keys.edx.keys import CourseKey
+Also note that right now we're not hooked into the publish flow. This task code
+is only invoked by the "update_course_outline" management command.
+"""
 from xmodule.modulestore import ModuleStoreEnum
-from xmodule.modulestore.django import modulestore, SignalHandler
+from xmodule.modulestore.django import modulestore
 
 from .api import replace_course_outline
 from .api.data import (
@@ -16,25 +14,13 @@ from .api.data import (
 )
 
 
-@receiver(SignalHandler.course_published)
-def ls_listen_for_course_publish(sender, course_key, **kwargs):
-    # update_from_modulestore.delay(course_key)
-    return
-
-    if not isinstance(course_key, CourseKey):
-        return
-    if course_key.deprecated:
-        return
-    update_from_modulestore(course_key)
-
-
-log = logging.getLogger(__name__)
-
-
 def update_from_modulestore(course_key):
     """
-    Should this live in another system as a post-publish hook to push data to
-    the LMS?
+    Update the CourseOutlineData for course_key with ModuleStore data (i.e. what
+    was most recently published in Studio).
+
+    We should move this out so that learning_sequences does not depend on
+    ModuleStore.
     """
     def _make_section_data(section):
         sequences_data = []
@@ -61,8 +47,6 @@ def update_from_modulestore(course_key):
         )
         return section_data
 
-
-    # Do the expensive modulestore access before starting a transaction...
     store = modulestore()
     sections = []
     with store.branch_setting(ModuleStoreEnum.Branch.published_only, course_key):

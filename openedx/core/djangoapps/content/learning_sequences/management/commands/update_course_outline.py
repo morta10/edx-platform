@@ -6,7 +6,7 @@ from ...tasks import update_from_modulestore
 
 
 class Command(BaseCommand):
-    help = "Updates a single course outline based on modulestore content"
+    help = "Updates a single course outline based on modulestore content."
 
     def add_arguments(self, parser):
         parser.add_argument('course_key')

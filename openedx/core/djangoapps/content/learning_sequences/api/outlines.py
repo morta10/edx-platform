@@ -219,11 +219,10 @@ def replace_course_outline(course_outline: CourseOutlineData):
 
     This isn't particularly optimized at the moment.
     """
-    course_key = course_outline.course_key
-    log.info("Generating CourseOutline for %s", course_key)
-    log.info("CourseOutline: %s", course_outline)
-    if course_key.deprecated:
-        raise ValueError("CourseOutline generation not supported for Old Mongo courses")
+    log.info(
+        "Replacing CourseOutline for %s (version %s, %d sequences)",
+        course_outline.course_key, course_outline.published_version, len(course_outline.sequences)
+    )
 
     with transaction.atomic():
         # Update or create the basic LearningContext...

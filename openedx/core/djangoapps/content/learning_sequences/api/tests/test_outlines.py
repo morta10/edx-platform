@@ -64,3 +64,6 @@ class RoundTripTestCase(CacheIsolationTestCase):
         replace_course_outline(self.course_outline)
         outline = get_course_outline(self.course_key)
         assert outline == self.course_outline
+
+    # Add tests with more permutations of data, updates with same structure,
+    # updates with slightly different structure.

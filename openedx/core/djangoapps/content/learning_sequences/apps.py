@@ -8,4 +8,5 @@ class LearningSequencesConfig(AppConfig):
 
     def ready(self):
         # Register celery workers
-        from .tasks import ls_listen_for_course_publish  # pylint: disable=unused-variable
+        # from .tasks import ls_listen_for_course_publish  # pylint: disable=unused-variable
+        pass
