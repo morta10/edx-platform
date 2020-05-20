@@ -20,6 +20,8 @@ Guidelines:
 
 Note: we're using old-style syntax for attrs because we need to support Python
 3.5, but we can move to the PEP-526 style once we move to Python 3.6+.
+
+TODO: Validate all datetimes to be UTC.
 """
 import logging
 from datetime import datetime, timezone
@@ -82,8 +84,8 @@ class CourseSectionData:
     """
     usage_key = attr.ib(type=UsageKey)
     title = attr.ib(type=str)
-    sequences = attr.ib(type=List[CourseLearningSequenceData])
     visibility = attr.ib(type=VisibilityData)
+    sequences = attr.ib(type=List[CourseLearningSequenceData])
 
 
 @attr.s(frozen=True)
@@ -91,6 +93,7 @@ class CourseOutlineData:
     """
     Course Outline information without any user-specific data.
     """
+    MAX_SEQUENCE_COUNT = 1000
 
     class DoesNotExist(ObjectDoesNotExist):
         pass
@@ -98,7 +101,7 @@ class CourseOutlineData:
     course_key = attr.ib(type=CourseKey)
 
     @course_key.validator
-    def not_deprecated(self, attribute, value):
+    def not_deprecated(self, _attribute, value):
         """
         Only non-deprecated course keys (e.g. course-v1:) are supported.
         The older style of "Org/Course/Run" slash-separated keys will not work.
@@ -143,6 +146,14 @@ class CourseOutlineData:
         # Have to use this to get around the fact that the class is frozen
         # (which we almost always want, but not while we're initializing it).
         object.__setattr__(self, "sequences", sequences)
+
+        # Because this is in the post-init hook, we have to do validation of
+        # sequences manually here, instead of in a @sequences.validator
+        if len(sequences) > self.MAX_SEQUENCE_COUNT:
+            raise ValueError(
+                "sequences cannot have more than {} entries ({} attempted)"
+                .format(self.MAX_SEQUENCE_COUNT, len(sequences))
+            )
 
     def remove(self, usage_keys):
         """

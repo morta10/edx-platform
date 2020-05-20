@@ -1,3 +1,8 @@
+"""
+All Course Outline related business logic. Do not import from this module
+directly. Use openedx.core.djangoapps.content.learning_sequences.api -- that
+__init__.py imports from here, and is a more stable place to import from.
+"""
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -7,12 +12,12 @@ import attr
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from edx_django_utils.cache import TieredCache, get_cache_key
+from edx_django_utils.monitoring import function_trace
 from opaque_keys.edx.keys import CourseKey, UsageKey
 
 from .data import (
-    CourseOutlineData, CourseSectionData,
-    CourseLearningSequenceData, UserCourseOutlineData, UserCourseOutlineDetailsData,
-    VisibilityData,
+    CourseOutlineData, CourseSectionData, CourseLearningSequenceData,
+    UserCourseOutlineData, UserCourseOutlineDetailsData, VisibilityData,
 )
 from ..models import (
     CourseSection, CourseSectionSequence, LearningContext, LearningSequence
@@ -38,6 +43,8 @@ def get_course_outline(course_key: CourseKey) -> CourseOutlineData:
     Get the outline of a course run.
 
     There is no user-specific data or permissions applied in this function.
+
+    See the definition of CourseOutlineData for details about the data returned.
     """
     learning_context = _get_learning_context_for_outline(course_key)
 
@@ -124,6 +131,9 @@ def get_user_course_outline(course_key: CourseKey,
 
     `user` is a Django User object (including the AnonymousUser)
     `at_time` should be a UTC datetime.datetime object.
+
+    See the definition of UserCourseOutlineData for details about the data
+    returned.
     """
     user_course_outline, _ = _get_user_course_outline_and_processors(course_key, user, at_time)
     return user_course_outline
@@ -133,6 +143,9 @@ def get_user_course_outline_details(course_key: CourseKey,
                                     at_time: datetime) -> UserCourseOutlineDetailsData:
     """
     Get an outline with supplementary data like scheduling information.
+
+    See the definition of UserCourseOutlineDetailsData for details about the
+    data returned.
     """
     user_course_outline, processors = _get_user_course_outline_and_processors(
         course_key, user, at_time
@@ -152,7 +165,8 @@ def _get_user_course_outline_and_processors(course_key: CourseKey,
 
     # These are processors that alter which sequences are visible to students.
     # For instance, certain sequences that are intentionally hidden or not yet
-    # released. These do not need to be run for staff users.
+    # released. These do not need to be run for staff users. This is where we
+    # would add in pluggability for OutlineProcessors down the road.
     processor_classes = [
 #        ('content_gating', ContentGatingOutlineProcessor),
 #        ('milestones', MilestonesOutlineProcessor),
@@ -174,28 +188,13 @@ def _get_user_course_outline_and_processors(course_key: CourseKey,
         processors[name] = processor
         processor.load_data()
         if not user_can_see_all_content:
-            processor_usage_keys_removed = processor.usage_keys_to_remove(full_course_outline)
-            processor_inaccessible_sequences = processor.inaccessible_sequences(full_course_outline)
-            log.info(
-                "Processor '%s' (%s) removed %d items for user %s: %s",
-                name,
-                processor_cls.__name__,
-                len(processor_usage_keys_removed),
-                user.username,
-                sorted(str(usage_key) for usage_key in processor_usage_keys_removed),
-            )
-            log.info(
-                "Processor '%s' (%s) made %d items inaccessible for user %s: %s",
-                name,
-                processor_cls.__name__,
-                len(processor_inaccessible_sequences),
-                user.username,
-                sorted(str(usage_key) for usage_key in processor_inaccessible_sequences),
-            )
-            usage_keys_to_remove |= processor_usage_keys_removed
-            inaccessible_sequences |= processor_inaccessible_sequences
+            with function_trace('processor:{}'.format(name)):
+                processor_usage_keys_removed = processor.usage_keys_to_remove(full_course_outline)
+                processor_inaccessible_sequences = processor.inaccessible_sequences(full_course_outline)
+                usage_keys_to_remove |= processor_usage_keys_removed
+                inaccessible_sequences |= processor_inaccessible_sequences
 
-    # Question: Does it make sense to remove a Section if it has no Sequences in it?
+    # Open question: Does it make sense to remove a Section if it has no Sequences in it?
     trimmed_course_outline = full_course_outline.remove(usage_keys_to_remove)
     accessible_sequences = set(trimmed_course_outline.sequences) - inaccessible_sequences
 

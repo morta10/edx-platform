@@ -1,18 +1,6 @@
 """
-Expectation for all OutlineProcessors are:
-
-* something to do a one-time load of data for an entire course
-* a method to call to emit a list of usage_keys to hide
-* a method to call to add any data that is relevant to this system.
-
-# Processors that we need:
-
-Attributes that apply to both Sections and Sequences
-* start
-* .hide_from_toc
-
-Might make sense to put this whole thing as a "private" module in an api package,
-with the understanding that it's not part of the external contract yet.
+This module defines the base OutlineProcessor class that is the primary method
+of adding new logic that manipulates the Course Outline for a given student.
 """
 import logging
 from datetime import datetime
@@ -28,7 +16,24 @@ log = logging.getLogger(__name__)
 
 class OutlineProcessor:
     """
+    Base class for manipulating the Course Outline.
 
+    You can inherit from this class and extend any of its four main methods:
+    __init__, load_data, inaccessible_sequences, usage_keys_to_remove.
+
+    An OutlineProcessor is invoked synchronously during a request for the
+    CourseOutline. The steps are:
+        * __init__
+        * load_data
+        * inaccessible_sequences, usage_keys_to_remove (no ordering guarantee)
+
+    Also note that you should not assume any ordering relative to any other
+    OutlineProcessor. Once async support works its way fully into Django, we'll
+    likely even want to run these in parallel.
+
+    Some outline processors (like ScheduleOutlineProcessor) may choose to have
+    additional methods to return specific metadata to feed into
+    UserCourseOutlineDetailsData.
     """
     def __init__(self, course_key: CourseKey, user: User, at_time: datetime):
         """

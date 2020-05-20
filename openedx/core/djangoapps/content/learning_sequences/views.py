@@ -145,7 +145,8 @@ class CourseOutlineView(APIView):
 
         Currently restricted to global staff.
 
-        TODO: Swagger docs of API.
+        TODO: Swagger docs of API. For an exemplar to imitate, see:
+        https://github.com/edx/edx-platform/blob/master/lms/djangoapps/program_enrollments/rest_api/v1/views.py#L792-L820
         """
         # Translate input params and do any substitutions...
         course_key = CourseKey.from_string(course_key_str)

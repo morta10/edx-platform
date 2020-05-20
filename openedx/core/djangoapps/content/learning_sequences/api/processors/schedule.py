@@ -42,9 +42,8 @@ class ScheduleOutlineProcessor(OutlineProcessor):
     def load_data(self):
         """Pull dates information from edx-when."""
         # (usage_key, 'due'): datetime.datetime(2019, 12, 11, 15, 0, tzinfo=<UTC>)
-        self.dates = get_dates_for_course(self.course_key, self.user, outline_only=True)
-
-        # TODO: Merge https://github.com/edx/edx-when/pull/48
+        # TODO: Merge https://github.com/edx/edx-when/pull/48 and add `outline_only=True`
+        self.dates = get_dates_for_course(self.course_key, self.user)
 
         for (usage_key, field_name), date in self.dates.items():
             self.keys_to_schedule_fields[usage_key][field_name] = date
