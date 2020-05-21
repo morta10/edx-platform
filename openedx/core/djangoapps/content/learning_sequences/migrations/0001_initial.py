@@ -48,10 +48,10 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(primary_key=True, serialize=False)),
                 ('context_key', opaque_keys.edx.django.models.LearningContextKeyField(db_index=True, max_length=255, unique=True)),
                 ('title', models.CharField(max_length=255)),
-                ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
-                ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
                 ('published_at', models.DateTimeField()),
                 ('published_version', models.CharField(max_length=255)),
+                ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
+                ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
             ],
         ),
         migrations.CreateModel(

@@ -20,47 +20,15 @@ class TestCourseOutlineData(TestCase):
         test as needed.
         """
         super().setUpClass()
-        course_key = CourseKey.from_string("course-v1:OpenEdX+Learning+TestRun")
         normal_visibility = VisibilityData(hide_from_toc=False, visible_to_staff_only=False)
+        cls.course_key = CourseKey.from_string("course-v1:OpenEdX+Learning+TestRun")
         cls.course_outline = CourseOutlineData(
-            course_key=course_key,
+            course_key=cls.course_key,
             title="Exciting Test Course!",
             published_at=datetime(2020, 5, 19, tzinfo=timezone.utc),
             published_version="5ebece4b69dd593d82fe2014",
-            sections=[
-                CourseSectionData(
-                    usage_key=course_key.make_usage_key('chapter', 'ch1'),
-                    title="Chapter 1: 🔥",
-                    visibility=normal_visibility,
-                    sequences=[
-                        CourseLearningSequenceData(
-                            usage_key=course_key.make_usage_key(
-                                'sequential', 'seq_1_{}'.format(i)
-                            ),
-                            title="Seq 1.{}: 🔥".format(i),
-                            visibility=normal_visibility,
-                        )
-                        for i in range(3)
-                    ]
-                ),
-                CourseSectionData(
-                    usage_key=course_key.make_usage_key('chapter', 'ch2'),
-                    title="Chapter 2: 🔥🔥",
-                    visibility=normal_visibility,
-                    sequences=[
-                        CourseLearningSequenceData(
-                            usage_key=course_key.make_usage_key(
-                                'sequential', 'seq_2_{}'.format(i)
-                            ),
-                            title="Seq 2.{}: 🔥🔥".format(i),
-                            visibility=normal_visibility,
-                        )
-                        for i in range(2)
-                    ]
-                ),
-            ]
+            sections=generate_sections(cls.course_key, [3, 2])
         )
-        cls.course_key = course_key
 
     def test_deprecated_course_key(self):
         """Old-Mongo style, "Org/Course/Run" keys are not supported."""
@@ -92,20 +60,11 @@ class TestCourseOutlineData(TestCase):
 
     def test_size(self):
         """Limit how large a CourseOutline is allowed to be."""
-        normal_visibility = VisibilityData(hide_from_toc=False, visible_to_staff_only=False)
-        very_big_section = attr.evolve(
-            self.course_outline.sections[0],
-            sequences=[
-                CourseLearningSequenceData(
-                    usage_key=self.course_key.make_usage_key('sequential', 'seq_{}'.format(i)),
-                    title="Seq {}".format(i),
-                    visibility=normal_visibility,
-                )
-                for i in range(1001)
-            ]
-        )
         with self.assertRaises(ValueError):
-            attr.evolve(self.course_outline, sections=[very_big_section])
+            attr.evolve(
+                self.course_outline,
+                sections=generate_sections(self.course_key, [1001])
+            )
 
     def test_remove_sequence(self):
         """Remove a single sequence from the CourseOutlineData (creates a copy)."""
@@ -137,3 +96,37 @@ class TestCourseOutlineData(TestCase):
         seq_key_to_remove = self.course_key.make_usage_key('sequential', 'not_here')
         new_outline = self.course_outline.remove({seq_key_to_remove})
         assert new_outline == self.course_outline
+
+
+def generate_sections(course_key, num_sequences):
+    """
+    Generate a list of CourseSectionData.
+
+    `num_sequences` is a list that contains the length of each CourseSectionData
+    in order. So if you pass in [1, 3, 5], we would pass back a list of three
+    CourseSectionData, where the first one has 1 CourseLearningSequenceData as
+    it sequences, the second had 3 sequences, and the third had 5 sequences.
+
+    All sections and sequences have normal visibility.
+    """
+    normal_visibility = VisibilityData(hide_from_toc=False, visible_to_staff_only=False)
+    sections = []
+    for sec_num, seq_count in enumerate(num_sequences, 1):
+        sections.append(
+            CourseSectionData(
+                usage_key=course_key.make_usage_key('chapter', 'ch_{}'.format(sec_num)),
+                title="Chapter {}: 🔥".format(sec_num),
+                visibility=normal_visibility,
+                sequences=[
+                    CourseLearningSequenceData(
+                        usage_key=course_key.make_usage_key(
+                            'sequential', 'seq_{}_{}'.format(sec_num, seq_num)
+                        ),
+                        title="Seq {}.{}: 🔥".format(sec_num, seq_num),
+                        visibility=normal_visibility,
+                    )
+                    for seq_num in range(seq_count)
+                ]
+            )
+        )
+    return sections

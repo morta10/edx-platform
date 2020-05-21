@@ -64,7 +64,7 @@ class ScheduleOutlineProcessor(OutlineProcessor):
 
         # If the course hasn't started at all, then everything is inaccessible.
         if self._course_start is None or self.at_time < self._course_start:
-            return full_course_outline.sequences
+            return set(full_course_outline.sequences)
 
         inaccessible = set()
         for section in full_course_outline.sections:
@@ -84,7 +84,7 @@ class ScheduleOutlineProcessor(OutlineProcessor):
 
     def schedule_data(self, pruned_course_outline: UserCourseOutlineData) -> ScheduleData:
         """
-        Return the data we want to add to this CourseOutlineData.
+        Return supplementary scheduling information for this outline.
 
         Be careful to pass in a UserCourseOutlineData–i.e. an outline that has
         already been pruned to what a user is allowed to see. That way, we can
