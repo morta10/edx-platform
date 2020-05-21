@@ -56,7 +56,9 @@ class DatesTabView(RetrieveAPIView):
     permission_classes = (IsAuthenticated,)
     serializer_class = DatesTabSerializer
 
-    def get(self, request, course_key_string):
+    def get(self, request, *args, **kwargs):
+        course_key_string = kwargs.get('course_key_string')
+
         # Enable NR tracing for this view based on course
         monitoring_utils.set_custom_metric('course_id', course_key_string)
         monitoring_utils.set_custom_metric('user_id', request.user.id)
@@ -83,8 +85,6 @@ class DatesTabView(RetrieveAPIView):
             'user_timezone': user_timezone,
             'verified_upgrade_link': verified_upgrade_deadline_link(request.user, course=course),
         }
-        context = self.get_serializer_context()
-        context['learner_is_verified'] = learner_is_verified
-        serializer = self.get_serializer_class()(data, context=context)
+        serializer = self.get_serializer(data)
 
         return Response(serializer.data)

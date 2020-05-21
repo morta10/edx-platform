@@ -1,3 +1,4 @@
+# pylint: disable=abstract-method
 """
 Dates Tab Serializers. Represents the relevant dates for a Course.
 """
@@ -20,10 +21,7 @@ class DateSummarySerializer(serializers.Serializer):
     title = serializers.CharField()
 
     def get_learner_has_access(self, block):
-        learner_is_verified = self.context.get('learner_is_verified', False)
-        block_is_verified = (getattr(block, 'contains_gated_content', False) or
-                             isinstance(block, VerificationDeadlineDate))
-        return (not block_is_verified) or learner_is_verified
+        return not (getattr(block, 'contains_gated_content', False) or isinstance(block, VerificationDeadlineDate))
 
     def get_link(self, block):
         if block.link:
