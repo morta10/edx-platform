@@ -133,7 +133,7 @@ class HasStaffAccessToContent(Rule):
             if masq_setting.role == 'student'
         ]
 
-        not_masquerading_as_student = ~Q(id__in=masq_as_student)
+        not_masquerading_as_student = not Q(id__in=masq_as_student)
 
         is_global_staff = user.is_staff
         course_staff_or_instructor_courses = CourseAccessRole.objects.filter(
