@@ -27,6 +27,7 @@ from lms.djangoapps.certificates.api import (
     get_certificate_footer_context,
     get_certificate_header_context,
     get_certificate_template,
+    get_certificates_for_user,
     get_certificate_url
 )
 from lms.djangoapps.certificates.models import (
